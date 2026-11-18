@@ -1,0 +1,70 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const cp = require('node:child_process');
+const ts = require('typescript');
+
+function load(file, dependencies = {}) {
+  const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+  const module = { exports: {} };
+  new Function('require', 'exports', 'module', js)((name) => dependencies[name] ?? require(name), module.exports, module);
+  return module.exports;
+}
+const diff = load('server/diff.ts');
+const history = load('server/history.ts', { './diff': diff });
+const repositories = load('server/repositories.ts', { './diff': diff });
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'paseo-git-history-'));
+const git = (...args) => cp.execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+(async () => {
+  try {
+    git('init'); git('config', 'user.email', 'test@example.com'); git('config', 'user.name', 'Tester');
+    fs.writeFileSync(path.join(dir, 'file name.txt'), 'first\n'); git('add', '.'); git('commit', '-m', 'initial');
+    const first = git('rev-parse', 'HEAD');
+    git('branch', 'other');
+    fs.writeFileSync(path.join(dir, 'file name.txt'), 'second\n'); git('commit', '-am', 'second');
+    const second = git('rev-parse', 'HEAD');
+    await assert.rejects(diff.getDiff({ directory: dir, mode: 'upstream', file: null }), /上游/);
+    git('remote', 'add', 'origin', 'https://example.invalid/repo.git');
+    git('update-ref', 'refs/remotes/origin/test', first);
+    const branchName = git('branch', '--show-current');
+    git('config', `branch.${branchName}.remote`, 'origin');
+    git('config', `branch.${branchName}.merge`, 'refs/heads/test');
+    fs.writeFileSync(path.join(dir, 'file name.txt'), 'uncommitted\n');
+    const upstreamDiff = await diff.getDiff({ directory: dir, mode: 'upstream', file: 'file name.txt' });
+    assert.match(upstreamDiff.patch, /\+second/); assert.doesNotMatch(upstreamDiff.patch, /uncommitted/);
+    const branches = await history.getBranches({ directory: dir });
+    assert(branches.branches.some((b) => b.ref === 'refs/heads/other'));
+    const log = await history.getHistory({ directory: dir, ref: 'HEAD', skip: 0 });
+    assert.deepEqual(log.commits.map((c) => c.hash), [second, first]);
+    const other = await history.getHistory({ directory: dir, ref: 'refs/heads/other', skip: 0 });
+    assert.deepEqual(other.commits.map((c) => c.hash), [first]);
+    await assert.rejects(history.getHistory({ directory: dir, ref: '--all', skip: 0 }));
+    const root = await history.getCommit({ directory: dir, hash: first, file: 'file name.txt' });
+    assert.deepEqual(root.files, ['file name.txt']); assert.match(root.patch, /\+first/);
+    const changed = await history.getCommit({ directory: dir, hash: second, file: 'file name.txt' });
+    assert.match(changed.patch, /-first/); assert.match(changed.patch, /\+second/);
+    const missing = await history.getCommit({ directory: dir, hash: second, file: 'missing' });
+    assert.equal(missing.patch, '');
+    fs.mkdirSync(path.join(dir, 'nested'));
+    cp.execFileSync('git', ['init', path.join(dir, 'nested')], { stdio: 'ignore' });
+    fs.writeFileSync(path.join(dir, 'untracked.txt'), 'new file\n');
+    const changes = await diff.getDiff({ directory: dir, mode: 'unstaged', file: 'untracked.txt' });
+    assert(changes.files.includes('untracked.txt')); assert.match(changes.patch, /\+new file/);
+    const stats = await diff.getDiff({ directory: dir, mode: 'unstaged', file: null });
+    assert.equal(stats.additions, 2); assert.equal(stats.deletions, 1);
+    git('add', 'file name.txt');
+    const stagedOnly = await diff.getDiff({ directory: dir, mode: 'unstaged', file: 'file name.txt' });
+    assert.match(stagedOnly.patch, /\+uncommitted/);
+    git('reset', '--hard', 'HEAD');
+    const upstreamStats = await diff.getDiff({ directory: dir, mode: 'upstream', file: null });
+    assert.equal(upstreamStats.additions, 1); assert.equal(upstreamStats.deletions, 1);
+    const overview = await repositories.getRepositories({ directory: dir, extra: [path.join(dir, 'nested')] });
+    assert.equal(overview.repositories.length, 2);
+    const main = overview.repositories.find((repo) => repo.lastCommit.includes('second'));
+    assert(main); assert(main.untracked >= 1); assert.equal(main.branch, branches.current); assert.match(main.lastCommit, /second/);
+    console.log('Git history and multi-repository tests passed');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+})().catch((error) => { console.error(error); process.exitCode = 1; });
