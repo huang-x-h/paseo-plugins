@@ -27,6 +27,7 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
   const selectedStyle = { backgroundColor: theme.colors.accent };
   const selectedText = { color: theme.colors.accentForeground };
   const branchName = ref === "HEAD" ? `当前 HEAD (${branches.data?.current ?? "…"})` : branches.data?.branches.find((item) => item.ref === ref)?.name ?? ref;
+  const body = (files.data?.message ?? "").split("\n").slice(1).join("\n").trim();
   const error = branches.error ?? history.error ?? files.error ?? patch.error;
   const changeRef = (value: string) => { setRef(value); setPage(0); setSelectedHash(null); setSelectedFile(null); setBranchPicker(false); };
   return <View style={{ flex: 1, gap: 8, backgroundColor: theme.colors.surface0 }}>
@@ -57,7 +58,10 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
         {!history.isFetching && history.data?.commits.length === 0 && <Text style={muted}>没有提交记录。</Text>}
       </ScrollView>
       <View style={{ flex: 1, gap: 6, minHeight: 0 }}>
-        {commit && <ScrollView style={{ flexGrow: 0, maxHeight: 120 }}><Text selectable style={text}>{files.data?.message || commit.subject}{"\n"}{commit.hash}{"\n"}{commit.author} · {commit.date}</Text></ScrollView>}
+        {commit && <View style={{ gap: 2 }}>
+          <Text numberOfLines={2} style={muted} selectable>{commit.hash} · {commit.author} · {commit.date}</Text>
+          {body && <Text selectable style={text}>{body}</Text>}
+        </View>}
         <ScrollView style={{ flexGrow: 0, maxHeight: 140 }} contentContainerStyle={{ gap: 4 }}>
           {files.data?.files.map((name) => <Pressable accessibilityRole="button" key={name} onPress={() => setSelectedFile(name)} style={{ padding: 6, borderRadius: 4, backgroundColor: file === name ? theme.colors.accent : theme.colors.surface1, borderWidth: 1, borderColor: theme.colors.border }}><Text numberOfLines={2} style={{ ...(file === name ? selectedText : text), fontSize: 12 }}>{name}</Text></Pressable>)}
         </ScrollView>
