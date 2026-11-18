@@ -60,7 +60,6 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
       <View style={{ flex: 1, gap: 6, minHeight: 0 }}>
         {commit && <View style={{ gap: 2 }}>
           <Text numberOfLines={1} style={{ ...muted, fontFamily: "monospace", fontSize: 11 }} selectable>{commit.hash}</Text>
-          <Text numberOfLines={1} style={muted}>{commit.author} · {commit.date}</Text>
           {body && <Text selectable style={text}>{body}</Text>}
         </View>}
         <ScrollView style={{ flexGrow: 0, maxHeight: 140 }} contentContainerStyle={{ gap: 4 }}>
