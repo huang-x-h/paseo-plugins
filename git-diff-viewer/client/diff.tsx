@@ -1,6 +1,6 @@
 import { type PluginWorkspacePanelProps, useRpc } from "@getpaseo/plugin/client";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { diffRpc } from "../shared/diff";
 import { PatchView } from "./patch-view";
@@ -27,12 +27,15 @@ export function DiffPanel({ theme, layout, directory, upstream }: PluginWorkspac
   const text = { color: theme.colors.foreground };
   const muted = { color: theme.colors.foregroundMuted };
   const button = { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, backgroundColor: theme.colors.surface0 };
+  const hasUpstream = !!upstream;
+  useEffect(() => { if (!hasUpstream && mode === "upstream") setMode("unstaged"); }, [hasUpstream, mode]);
+  const modes = ([["unstaged", "本地未提交"], ...(hasUpstream ? [["upstream", "本地与源端"] as const] : [])] as const);
   const files = list.data?.files.filter((file) => file.toLowerCase().includes(filter.toLowerCase())) ?? [];
   const error = list.error ?? patch.error;
   return (
     <View style={{ flex: 1, gap: 10, backgroundColor: theme.colors.surface0 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-        {([ ["unstaged", "本地未提交"], ["upstream", "本地与源端"] ] as const).map(([value, label]) => (
+        {modes.map(([value, label]) => (
           <Pressable key={value} accessibilityRole="button" onPress={() => { setMode(value); setSelected(null); }} style={{ ...button, backgroundColor: mode === value ? theme.colors.accent : theme.colors.surface0 }}>
             <Text style={{ color: mode === value ? theme.colors.accentForeground : theme.colors.foreground }}>{label}</Text>
           </Pressable>
@@ -40,7 +43,7 @@ export function DiffPanel({ theme, layout, directory, upstream }: PluginWorkspac
         <Pressable accessibilityRole="button" accessibilityLabel="刷新改动" onPress={() => { void list.refetch(); if (current) void patch.refetch(); }} style={{ ...button, backgroundColor: theme.colors.surface1, borderWidth: 1, borderColor: theme.colors.border }}><Text style={text}>{list.isFetching || patch.isFetching ? "刷新中…" : "刷新"}</Text></Pressable>
       </View>
       {mode === "unstaged" && <Text style={muted}>工作区相对 HEAD 的全部未提交改动，包含已暂存、未暂存和未跟踪文件。</Text>}
-      {mode === "upstream" && <Text style={muted}>比较 {upstream || "当前分支的上游"} → 本地 HEAD 的提交快照，不包含未提交改动。使用本地远端跟踪引用，不自动 fetch。</Text>}
+      {mode === "upstream" && hasUpstream && <Text style={muted}>比较 {upstream} → 本地 HEAD 的提交快照，不包含未提交改动。使用本地远端跟踪引用，不自动 fetch。</Text>}
       {list.data && <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <Text style={muted}>当前范围 · {list.data.files.length} 个文件</Text>
         <Text style={{ color: theme.colors.statusSuccess, fontWeight: "600" }}>+{list.data.additions}</Text>
