@@ -6,7 +6,10 @@ type Line = { text: string; kind: "add" | "delete" | "hunk" | "header" | "contex
 
 const FILE_HEADER = /^(diff --git |index |--- |\+\+\+ |old mode |new mode |similarity index |dissimilarity index |rename from |rename to )/;
 const FONT_SIZE = 12;
-const GUTTER_WIDTH = 4 * 2 + 3;
+const CHAR_WIDTH = FONT_SIZE * 0.6;
+// Gutter shows "old new" padded to four digits each, plus a trailing space.
+const GUTTER_CHARS = 4 + 1 + 4 + 1;
+const GUTTER_WIDTH = Math.round(GUTTER_CHARS * CHAR_WIDTH) + 8;
 
 function tint(hex: string, alpha: number) {
   const value = hex.replace("#", "");
@@ -48,7 +51,7 @@ export function PatchView({ patch, truncated, theme, maxHeight }: { patch: strin
   const bodyWidth = useMemo(() => {
     let longest = 0;
     for (const line of lines) longest = Math.max(longest, line.text.length);
-    return Math.round(longest * FONT_SIZE * 0.6) + GUTTER_WIDTH;
+    return Math.round(longest * CHAR_WIDTH) + GUTTER_WIDTH;
   }, [lines]);
   const gutter = (line: Line) => `${line.oldLine ?? ""}`.padStart(4) + " " + `${line.newLine ?? ""}`.padStart(4) + " ";
   const colorFor = (kind: Line["kind"]) => kind === "add" ? colors.statusSuccess : kind === "delete" ? colors.statusDanger : kind === "hunk" ? colors.accent : kind === "header" ? colors.foregroundMuted : colors.foreground;
@@ -56,11 +59,11 @@ export function PatchView({ patch, truncated, theme, maxHeight }: { patch: strin
   const body = <View style={{ minWidth: bodyWidth }}>
         {lines.map((line, index) => {
           const isMeta = line.kind === "hunk" || line.kind === "header";
-          return <View key={index} style={{ flexDirection: "row", backgroundColor: backgroundFor(line.kind) }}>
-            <Text style={{ width: GUTTER_WIDTH, color: colors.foregroundMuted, fontFamily: "monospace", fontSize: FONT_SIZE, lineHeight: 18, textAlign: "right", paddingRight: 8 }} selectable>
+          return <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", backgroundColor: backgroundFor(line.kind) }}>
+            <Text numberOfLines={1} style={{ width: GUTTER_WIDTH, flexShrink: 0, color: colors.foregroundMuted, fontFamily: "monospace", fontSize: FONT_SIZE, lineHeight: 18, textAlign: "right", paddingRight: 8 }} selectable>
               {isMeta ? "" : gutter(line)}
             </Text>
-            <Text style={{ color: colorFor(line.kind), fontFamily: "monospace", fontSize: FONT_SIZE, lineHeight: 18, paddingRight: 8 }} selectable>{line.text}</Text>
+            <Text style={{ flexShrink: 0, color: colorFor(line.kind), fontFamily: "monospace", fontSize: FONT_SIZE, lineHeight: 18, paddingRight: 8 }} selectable>{line.text}</Text>
           </View>;
         })}
         {truncated && <Text style={{ color: colors.statusWarning, fontFamily: "monospace", fontSize: FONT_SIZE, padding: 8 }}>{"[内容过长，已截断]"}</Text>}
