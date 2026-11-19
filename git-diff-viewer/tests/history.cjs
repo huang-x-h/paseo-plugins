@@ -63,6 +63,16 @@ const git = (...args) => cp.execFileSync('git', args, { cwd: dir, encoding: 'utf
     assert.equal(upstreamStats.additions, 1); assert.equal(upstreamStats.deletions, 1);
     const overview = await repositories.getRepositories({ directory: dir, extra: [path.join(dir, 'nested')] });
     assert.equal(overview.repositories.length, 2);
+    const siblingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paseo-git-sibling-'));
+    const docsOnly = path.join(siblingRoot, 'docs-only');
+    fs.mkdirSync(docsOnly);
+    fs.writeFileSync(path.join(docsOnly, 'notes.md'), 'notes\n');
+    cp.execFileSync('git', ['init', path.join(siblingRoot, 'app')], { stdio: 'ignore' });
+    const fallback = await repositories.getRepositories({ directory: docsOnly, extra: [] });
+    assert.equal(fallback.usedFallback, true);
+    assert.equal(fallback.repositories.length, 1);
+    assert(fallback.repositories[0].directory.includes('app'));
+    fs.rmSync(siblingRoot, { recursive: true, force: true });
     const main = overview.repositories.find((repo) => repo.lastCommit.includes('second'));
     assert(main); assert(main.untracked >= 1); assert.equal(main.branch, branches.current); assert.match(main.lastCommit, /second/);
     console.log('Git history and multi-repository tests passed');

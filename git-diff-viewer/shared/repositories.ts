@@ -9,5 +9,5 @@ const repository = z.object({
 export const repositoriesRpc = defineRpc({
   name: "git.repositories",
   input: z.object({ directory: z.string().min(1), extra: z.array(z.string().min(1)).max(30) }),
-  output: z.object({ repositories: z.array(repository), truncated: z.boolean(), warnings: z.array(z.string()) }),
+  output: z.object({ repositories: z.array(repository), truncated: z.boolean(), warnings: z.array(z.string()), scannedRoots: z.array(z.string()), usedFallback: z.boolean() }),
 });

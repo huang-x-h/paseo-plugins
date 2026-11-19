@@ -45,7 +45,9 @@ async function summary(directory: string) {
 export async function getRepositories({ directory, extra }: RpcInput<typeof repositoriesRpc>) {
   const roots = new Map<string, string>();
   const warnings: string[] = [];
+  const scannedRoots: string[] = [];
   let truncated = false;
+  let usedFallback = false;
   const add = async (candidate: string, report: boolean) => {
     try {
       const root = await realpath(await repoRoot(candidate));
@@ -58,27 +60,41 @@ export async function getRepositories({ directory, extra }: RpcInput<typeof repo
       if (report) warnings.push(`${candidate}: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
+  const scanTree = async (root: string, maxDepth: number) => {
+    scannedRoots.push(root);
+    const queue = [{ directory: root, depth: 0 }];
+    let visited = 0;
+    while (queue.length && visited < MAX_DIRS && roots.size < MAX_REPOS) {
+      const current = queue.shift()!;
+      visited++;
+      try {
+        const entries = await readdir(current.directory, { withFileTypes: true });
+        if (entries.some((entry) => entry.name === ".git")) await add(current.directory, true);
+        if (current.depth < maxDepth) for (const entry of entries) {
+          if (entry.isDirectory() && !entry.isSymbolicLink() && !SKIP.has(entry.name)) queue.push({ directory: path.join(current.directory, entry.name), depth: current.depth + 1 });
+        }
+      } catch (error) { warnings.push(`${current.directory}: ${error instanceof Error ? error.message : String(error)}`); }
+    }
+    if (queue.length) truncated = true;
+  };
   // Include the enclosing repository when the workspace starts below its root.
   await add(directory, false);
-  const queue = [{ directory, depth: 0 }];
-  let visited = 0;
-  while (queue.length && visited < MAX_DIRS && roots.size < MAX_REPOS) {
-    const current = queue.shift()!;
-    visited++;
-    try {
-      const entries = await readdir(current.directory, { withFileTypes: true });
-      if (entries.some((entry) => entry.name === ".git")) await add(current.directory, true);
-      if (current.depth < MAX_DEPTH) for (const entry of entries) {
-        if (entry.isDirectory() && !entry.isSymbolicLink() && !SKIP.has(entry.name)) queue.push({ directory: path.join(current.directory, entry.name), depth: current.depth + 1 });
-      }
-    } catch (error) { warnings.push(`${current.directory}: ${error instanceof Error ? error.message : String(error)}`); }
+  await scanTree(directory, MAX_DEPTH);
+  // A project directory may hold only documents while sibling directories hold the repositories.
+  if (roots.size === 0) {
+    let parent = path.dirname(directory);
+    for (let level = 0; level < 3; level++) {
+      if (!parent || parent === path.parse(parent).root) break;
+      await scanTree(parent, 1);
+      if (roots.size > 0) { usedFallback = true; break; }
+      parent = path.dirname(parent);
+    }
   }
-  if (queue.length) truncated = true;
   for (const candidate of extra) {
     if (!path.isAbsolute(candidate)) warnings.push(`${candidate}: 请提供绝对路径`);
     else await add(candidate, true);
   }
   const repositories = await Promise.all([...roots.values()].map(summary));
   repositories.sort((a, b) => a.directory.localeCompare(b.directory));
-  return { repositories, truncated, warnings: warnings.slice(0, 50) };
+  return { repositories, truncated, warnings: warnings.slice(0, 50), scannedRoots, usedFallback };
 }

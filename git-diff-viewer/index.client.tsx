@@ -63,6 +63,7 @@ function GitPanel(props: PluginWorkspacePanelProps) {
         </View>}
       </View>
       {result.error && <Text selectable style={text}>扫描失败：{result.error instanceof Error ? result.error.message : String(result.error)}</Text>}
+      {result.data?.usedFallback && <Text style={muted}>工作区目录内没有仓库，已改为扫描上级目录：{result.data.scannedRoots.join("、")}</Text>}
       {!current ? <Text style={muted}>{result.isFetching ? "正在扫描工作区中的 Git 仓库…" : "工作区中没有找到 Git 仓库。"}</Text> : tab === "changes" ? <DiffPanel key={current} {...props} directory={current} upstream={currentRepo?.upstream ?? ""} /> : <HistoryPanel key={current} {...props} directory={current} />}
     </View>
   </View>;
