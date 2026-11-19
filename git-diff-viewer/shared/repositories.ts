@@ -8,6 +8,17 @@ const repository = z.object({
 });
 export const repositoriesRpc = defineRpc({
   name: "git.repositories",
-  input: z.object({ directory: z.string().min(1), extra: z.array(z.string().min(1)).max(30) }),
-  output: z.object({ repositories: z.array(repository), truncated: z.boolean(), warnings: z.array(z.string()), scannedRoots: z.array(z.string()), usedFallback: z.boolean() }),
+  input: z.object({
+    directory: z.string().min(1),
+    // Directories the user explicitly chose to scan in addition to the workspace.
+    roots: z.array(z.string().min(1)).max(20),
+  }),
+  output: z.object({
+    repositories: z.array(repository),
+    truncated: z.boolean(),
+    warnings: z.array(z.string()),
+    scannedRoots: z.array(z.string()),
+    // Parent directories that contain repositories, offered for the user to confirm.
+    suggestions: z.array(z.object({ directory: z.string(), repositoryCount: z.number() })),
+  }),
 });

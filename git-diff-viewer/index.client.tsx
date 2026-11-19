@@ -16,9 +16,10 @@ function GitPanel(props: PluginWorkspacePanelProps) {
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState("");
   const [repoPicker, setRepoPicker] = useState(false);
+  const [extraRoots, setExtraRoots] = useState<string[]>([]);
   const result = useQuery({
-    queryKey: ["git-repositories", directory],
-    queryFn: () => getRepositories({ directory, extra: [] }),
+    queryKey: ["git-repositories", directory, extraRoots],
+    queryFn: () => getRepositories({ directory, roots: extraRoots }),
     enabled: !!directory,
     staleTime: Infinity,
   });
@@ -63,7 +64,14 @@ function GitPanel(props: PluginWorkspacePanelProps) {
         </View>}
       </View>
       {result.error && <Text selectable style={text}>扫描失败：{result.error instanceof Error ? result.error.message : String(result.error)}</Text>}
-      {result.data?.usedFallback && <Text style={muted}>工作区目录内没有仓库，已改为扫描上级目录：{result.data.scannedRoots.join("、")}</Text>}
+      {result.data?.suggestions.map((suggestion) => <View key={suggestion.directory} style={{ gap: 6 }}>
+        <Text style={muted}>工作区内没有仓库。上级目录 {suggestion.directory} 下有 {suggestion.repositoryCount} 个仓库。</Text>
+        <Pressable accessibilityRole="button" onPress={() => setExtraRoots([...extraRoots, suggestion.directory])} style={button}><Text style={text}>扫描该目录</Text></Pressable>
+      </View>)}
+      {extraRoots.map((root) => <View key={root} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Text style={{ ...muted, flex: 1 }} numberOfLines={1} selectable>附加目录：{root}</Text>
+        <Pressable accessibilityRole="button" onPress={() => setExtraRoots(extraRoots.filter((item) => item !== root))} style={button}><Text style={text}>移除</Text></Pressable>
+      </View>)}
       {!current ? <Text style={muted}>{result.isFetching ? "正在扫描工作区中的 Git 仓库…" : "工作区中没有找到 Git 仓库。"}</Text> : tab === "changes" ? <DiffPanel key={current} {...props} directory={current} upstream={currentRepo?.upstream ?? ""} /> : <HistoryPanel key={current} {...props} directory={current} />}
     </View>
   </View>;
