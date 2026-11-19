@@ -1,27 +1,41 @@
-import { type PluginClientContext, type PluginWorkspacePanelProps, useRpc, useWorkspace } from "@getpaseo/plugin/client";
+import { type PluginClientContext, type PluginWorkspacePanelProps, useRpc, useTabState, useWorkspace } from "@getpaseo/plugin/client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { z } from "zod";
 import { DiffPanel } from "./client/diff";
 import { HistoryPanel } from "./client/history";
 import { repositoriesRpc } from "./shared/repositories";
 
 type Tab = "changes" | "history";
 
+const panelStateSchema = z.object({
+  selected: z.string(),
+  extraRoots: z.array(z.string()),
+  tab: z.enum(["changes", "history"]),
+});
+type PanelState = z.infer<typeof panelStateSchema>;
+
 function GitPanel(props: PluginWorkspacePanelProps) {
-  const { theme, layout, workspaceId } = props;
+  const { theme, layout, workspaceId, tab: panelTab } = props;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory) ?? "";
   const getRepositories = useRpc(repositoriesRpc);
-  const [tab, setTab] = useState<Tab>("changes");
+  const [state, setState] = useTabState(panelTab, panelStateSchema, { selected: "", extraRoots: [], tab: "changes" } satisfies PanelState);
   const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState("");
   const [repoPicker, setRepoPicker] = useState(false);
-  const [extraRoots, setExtraRoots] = useState<string[]>([]);
+  const tab = state.tab;
+  const setTab = (next: Tab) => setState({ ...state, tab: next });
+  const selected = state.selected;
+  const setSelected = (next: string) => setState({ ...state, selected: next });
+  const extraRoots = state.extraRoots;
+  const setExtraRoots = (next: string[]) => setState({ ...state, extraRoots: next });
   const result = useQuery({
     queryKey: ["git-repositories", directory, extraRoots],
     queryFn: () => getRepositories({ directory, roots: extraRoots }),
     enabled: !!directory,
     staleTime: Infinity,
+    // Refresh when the panel opens so newly added repositories show up.
+    refetchOnMount: "always",
   });
   const repositories = result.data?.repositories ?? [];
   const currentRepo = repositories.find((repo) => repo.directory === selected) ?? repositories[0];
