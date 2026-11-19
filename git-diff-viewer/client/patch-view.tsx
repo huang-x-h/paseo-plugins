@@ -5,6 +5,8 @@ import { ScrollView, Text, View } from "react-native";
 type Line = { text: string; kind: "add" | "delete" | "hunk" | "header" | "context"; oldLine: number | null; newLine: number | null };
 
 const FILE_HEADER = /^(diff --git |index |--- |\+\+\+ |old mode |new mode |similarity index |dissimilarity index |rename from |rename to )/;
+const FONT_SIZE = 12;
+const GUTTER_WIDTH = 4 * 2 + 3;
 
 function tint(hex: string, alpha: number) {
   const value = hex.replace("#", "");
@@ -40,21 +42,30 @@ function parsePatch(patch: string): Line[] {
   return lines;
 }
 
-export function PatchView({ patch, truncated, theme }: { patch: string; truncated?: boolean; theme: PluginTheme }) {
+export function PatchView({ patch, truncated, theme, maxHeight }: { patch: string; truncated?: boolean; theme: PluginTheme; maxHeight?: number }) {
   const lines = useMemo(() => parsePatch(patch), [patch]);
   const colors = theme.colors;
-  const gutter = (line: Line) => `${line.oldLine === null ? "" : line.oldLine}`.padStart(5) + " " + `${line.newLine === null ? "" : line.newLine}`.padStart(5) + "  ";
-  return <View style={{ flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface1, overflow: "hidden" }}>
-    <ScrollView style={{ flex: 1 }}><ScrollView horizontal>
-      <Text selectable style={{ fontFamily: "monospace", fontSize: 12, lineHeight: 20, color: colors.foreground }}>
+  const bodyWidth = useMemo(() => {
+    let longest = 0;
+    for (const line of lines) longest = Math.max(longest, line.text.length);
+    return Math.round(longest * FONT_SIZE * 0.6) + GUTTER_WIDTH;
+  }, [lines]);
+  const gutter = (line: Line) => `${line.oldLine ?? ""}`.padStart(4) + " " + `${line.newLine ?? ""}`.padStart(4) + " ";
+  const colorFor = (kind: Line["kind"]) => kind === "add" ? colors.statusSuccess : kind === "delete" ? colors.statusDanger : kind === "hunk" ? colors.accent : kind === "header" ? colors.foregroundMuted : colors.foreground;
+  const backgroundFor = (kind: Line["kind"]) => kind === "add" ? tint(colors.statusSuccess, 0.16) : kind === "delete" ? tint(colors.statusDanger, 0.16) : kind === "hunk" ? colors.surface2 : kind === "header" ? colors.surface2 : "transparent";
+  const body = <View style={{ minWidth: bodyWidth }}>
         {lines.map((line, index) => {
-          const color = line.kind === "add" ? colors.statusSuccess : line.kind === "delete" ? colors.statusDanger : line.kind === "hunk" ? colors.accent : line.kind === "header" ? colors.foregroundMuted : colors.foreground;
-          const backgroundColor = line.kind === "add" ? tint(colors.statusSuccess, 0.14) : line.kind === "delete" ? tint(colors.statusDanger, 0.14) : line.kind === "hunk" || line.kind === "header" ? colors.surface2 : colors.surface1;
-          const text = line.kind === "hunk" || line.kind === "header" ? line.text : `${gutter(line)}${line.text}`;
-          return <Text key={index} style={{ color, backgroundColor }}>{text}{index < lines.length - 1 ? "\n" : ""}</Text>;
+          const isMeta = line.kind === "hunk" || line.kind === "header";
+          return <View key={index} style={{ flexDirection: "row", backgroundColor: backgroundFor(line.kind) }}>
+            <Text style={{ width: GUTTER_WIDTH, color: colors.foregroundMuted, fontFamily: "monospace", fontSize: FONT_SIZE, lineHeight: 18, textAlign: "right", paddingRight: 8 }} selectable>
+              {isMeta ? "" : gutter(line)}
+            </Text>
+            <Text style={{ color: colorFor(line.kind), fontFamily: "monospace", fontSize: FONT_SIZE, lineHeight: 18, paddingRight: 8 }} selectable>{line.text}</Text>
+          </View>;
         })}
-        {truncated && <Text style={{ color: colors.statusWarning }}>{"\n\n[内容过长，已截断]"}</Text>}
-      </Text>
-    </ScrollView></ScrollView>
+        {truncated && <Text style={{ color: colors.statusWarning, fontFamily: "monospace", fontSize: FONT_SIZE, padding: 8 }}>{"[内容过长，已截断]"}</Text>}
+  </View>;
+  return <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface1, overflow: "hidden" }}>
+    {maxHeight ? <ScrollView style={{ maxHeight }} nestedScrollEnabled><ScrollView horizontal>{body}</ScrollView></ScrollView> : <ScrollView horizontal>{body}</ScrollView>}
   </View>;
 }

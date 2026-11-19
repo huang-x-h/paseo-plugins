@@ -7,7 +7,7 @@ import { PatchView } from "./patch-view";
 
 type Mode = "unstaged" | "upstream";
 
-export function DiffPanel({ theme, layout, directory, upstream }: PluginWorkspacePanelProps & { directory: string; upstream: string }) {
+export function DiffPanel({ theme, directory, upstream }: PluginWorkspacePanelProps & { directory: string; upstream: string }) {
   const rpc = useRpc(diffRpc);
   const [mode, setMode] = useState<Mode>("unstaged");
   const [selected, setSelected] = useState<string | null>(null);
@@ -54,12 +54,12 @@ export function DiffPanel({ theme, layout, directory, upstream }: PluginWorkspac
       {error && <Text style={text} selectable>读取失败：{error instanceof Error ? error.message : String(error)}</Text>}
       {list.isFetching && !list.data && <Text style={muted}>正在读取改动…</Text>}
       {list.data && list.data.files.length === 0 && <Text style={muted}>没有该范围内的文件改动。</Text>}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 6 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 6, paddingBottom: 8 }}>
         {files.map((file) => <View key={file} style={{ borderWidth: 1, borderColor: theme.colors.border, borderRadius: 6, overflow: "hidden" }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: current === file }} onPress={() => setSelected(current === file ? null : file)} style={{ padding: 10, backgroundColor: current === file ? theme.colors.surface2 : theme.colors.surface1 }}>
-            <Text style={text}>{current === file ? "▾" : "▸"} {file}</Text>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: current === file }} onPress={() => setSelected(current === file ? null : file)} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: current === file ? theme.colors.surface2 : theme.colors.surface1 }}>
+            <Text style={text} numberOfLines={2}>{current === file ? "▾" : "▸"} {file}</Text>
           </Pressable>
-          {current === file && <View style={{ height: layout.compact ? 300 : 420 }}><PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : "没有可显示的文本 diff。")} truncated={patch.data?.truncated} /></View>}
+          {current === file && <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : "没有可显示的文本 diff。")} truncated={patch.data?.truncated} />}
         </View>)}
         {list.data && list.data.files.length > 0 && files.length === 0 && <Text style={muted}>没有匹配的文件。</Text>}
       </ScrollView>

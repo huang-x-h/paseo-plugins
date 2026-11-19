@@ -67,7 +67,9 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
         </ScrollView>
         {files.isFetching && <Text style={muted}>正在读取文件…</Text>}
         {files.data && files.data.files.length === 0 && <Text style={muted}>此提交没有文件改动。</Text>}
-        <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : file ? "没有可显示的文本 diff。" : "选择提交和文件查看 diff。")} truncated={patch.data?.truncated} />
+        <ScrollView style={{ flex: 1 }} nestedScrollEnabled>
+          <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : file ? "没有可显示的文本 diff。" : "选择提交和文件查看 diff。")} truncated={patch.data?.truncated} />
+        </ScrollView>
       </View>
     </View>
   </View>;
