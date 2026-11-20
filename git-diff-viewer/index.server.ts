@@ -5,6 +5,8 @@ import { branchesRpc, historyRpc, commitRpc } from "./shared/history";
 import { getBranches, getHistory, getCommit } from "./server/history";
 import { repositoriesRpc } from "./shared/repositories";
 import { getRepositories } from "./server/repositories";
+import { fileContentRpc } from "./shared/file";
+import { getFileContent } from "./server/file";
 
 export default function contribute(server: PluginServerContext) {
   server.handle(diffRpc, getDiff);
@@ -12,5 +14,6 @@ export default function contribute(server: PluginServerContext) {
   server.handle(historyRpc, getHistory);
   server.handle(commitRpc, getCommit);
   server.handle(repositoriesRpc, getRepositories);
+  server.handle(fileContentRpc, getFileContent);
   return () => {};
 }

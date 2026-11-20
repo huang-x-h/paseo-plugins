@@ -19,6 +19,17 @@ export async function git(directory: string, args: string[]) {
   return stdout;
 }
 
+export async function gitBuffer(directory: string, args: string[]) {
+  const { stdout } = await exec("git", ["--no-pager", "--literal-pathspecs", ...args], {
+    cwd: directory,
+    encoding: "buffer",
+    maxBuffer: MAX_OUTPUT,
+    timeout: 15000,
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" },
+  });
+  return stdout as Buffer;
+}
+
 export async function getDiff(input: RpcInput<typeof diffRpc>) {
   const { directory, mode, file } = input;
   const options = ["-c", "core.quotepath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames"];

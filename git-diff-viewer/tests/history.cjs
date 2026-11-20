@@ -15,6 +15,7 @@ function load(file, dependencies = {}) {
 const diff = load('server/diff.ts');
 const history = load('server/history.ts', { './diff': diff });
 const repositories = load('server/repositories.ts', { './diff': diff });
+const fileContent = load('server/file.ts', { './diff': diff });
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'paseo-git-history-'));
 const git = (...args) => cp.execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
@@ -79,6 +80,15 @@ const git = (...args) => cp.execFileSync('git', args, { cwd: dir, encoding: 'utf
     fs.rmSync(siblingRoot, { recursive: true, force: true });
     const main = overview.repositories.find((repo) => repo.lastCommit.includes('second'));
     assert(main); assert(main.untracked >= 1); assert.equal(main.branch, branches.current); assert.match(main.lastCommit, /second/);
+    fs.writeFileSync(path.join(dir, 'file name.txt'), 'worktree\n');
+    const worktree = await fileContent.getFileContent({ directory: dir, file: 'file name.txt', source: 'worktree' });
+    assert.match(worktree.content, /worktree/); assert.equal(worktree.binary, false);
+    const committed = await fileContent.getFileContent({ directory: dir, file: 'file name.txt', source: 'commit', revision: second });
+    assert.match(committed.content, /second/); assert.doesNotMatch(committed.content, /worktree/);
+    await assert.rejects(fileContent.getFileContent({ directory: dir, file: '../outside.txt', source: 'worktree' }), /路径/);
+    fs.writeFileSync(path.join(dir, 'binary.bin'), Buffer.from([0x00, 0x01, 0x02]));
+    const binary = await fileContent.getFileContent({ directory: dir, file: 'binary.bin', source: 'worktree' });
+    assert.equal(binary.binary, true); assert.equal(binary.content, '');
     console.log('Git history and multi-repository tests passed');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

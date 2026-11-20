@@ -3,24 +3,29 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { branchesRpc, commitRpc, historyRpc } from "../shared/history";
+import { fileContentRpc } from "../shared/file";
+import { FileContentView } from "./file-view";
 import { PatchView } from "./patch-view";
 
 export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelProps & { directory: string }) {
   const getBranches = useRpc(branchesRpc);
   const getHistory = useRpc(historyRpc);
   const getCommit = useRpc(commitRpc);
+  const getFileContent = useRpc(fileContentRpc);
   const [ref, setRef] = useState("HEAD");
   const [branchPicker, setBranchPicker] = useState(false);
   const [branchFilter, setBranchFilter] = useState("");
   const [page, setPage] = useState(0);
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [view, setView] = useState<"diff" | "content">("diff");
   const branches = useQuery({ queryKey: ["git-branches", directory], queryFn: () => getBranches({ directory }), enabled: !!directory });
   const history = useQuery({ queryKey: ["git-history", directory, ref, page], queryFn: () => getHistory({ directory, ref, skip: page * 100 }), enabled: !!directory });
   const commit = history.data?.commits.find((item) => item.hash === selectedHash) ?? history.data?.commits[0];
   const files = useQuery({ queryKey: ["git-commit-files", directory, commit?.hash], queryFn: () => getCommit({ directory, hash: commit!.hash, file: null }), enabled: !!directory && !!commit });
   const file = selectedFile && files.data?.files.includes(selectedFile) ? selectedFile : files.data?.files[0] ?? null;
   const patch = useQuery({ queryKey: ["git-commit-patch", directory, commit?.hash, file], queryFn: () => getCommit({ directory, hash: commit!.hash, file }), enabled: !!directory && !!commit && !!file });
+  const content = useQuery({ queryKey: ["git-file-content", directory, commit?.hash, file], queryFn: () => getFileContent({ directory, file: file!, source: "commit", revision: commit!.hash }), enabled: !!directory && !!commit && !!file && view === "content" });
   const text = { color: theme.colors.foreground };
   const muted = { color: theme.colors.foregroundMuted };
   const button = { padding: 8, borderWidth: 1, borderColor: theme.colors.foregroundMuted, borderRadius: 5 };
@@ -67,8 +72,11 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
         </ScrollView>
         {files.isFetching && <Text style={muted}>正在读取文件…</Text>}
         {files.data && files.data.files.length === 0 && <Text style={muted}>此提交没有文件改动。</Text>}
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {([["diff", "差异"], ["content", "全文"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" onPress={() => setView(value)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: view === value ? theme.colors.accent : theme.colors.surface1 }}><Text style={{ color: view === value ? theme.colors.accentForeground : theme.colors.foreground, fontSize: 12 }}>{label}</Text></Pressable>)}
+        </View>
         <ScrollView style={{ flex: 1 }} nestedScrollEnabled>
-          <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : file ? "没有可显示的文本 diff。" : "选择提交和文件查看 diff。")} truncated={patch.data?.truncated} />
+          {view === "diff" ? <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : file ? "没有可显示的文本 diff。" : "选择提交和文件查看 diff。")} truncated={patch.data?.truncated} /> : content.isFetching ? <Text style={muted}>正在读取文件内容…</Text> : content.error ? <Text selectable style={text}>读取失败：{content.error instanceof Error ? content.error.message : String(content.error)}</Text> : content.data?.binary ? <Text style={muted}>二进制文件，不显示内容。</Text> : <FileContentView content={content.data?.content ?? ""} truncated={content.data?.truncated ?? false} totalLines={content.data?.totalLines ?? 0} theme={theme} />}
         </ScrollView>
       </View>
     </View>

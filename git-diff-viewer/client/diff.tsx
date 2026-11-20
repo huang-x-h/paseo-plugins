@@ -3,15 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { diffRpc } from "../shared/diff";
+import { fileContentRpc } from "../shared/file";
+import { FileContentView } from "./file-view";
 import { PatchView } from "./patch-view";
 
 type Mode = "unstaged" | "upstream";
 
 export function DiffPanel({ theme, directory, upstream }: PluginWorkspacePanelProps & { directory: string; upstream: string }) {
   const rpc = useRpc(diffRpc);
+  const getFileContent = useRpc(fileContentRpc);
   const [mode, setMode] = useState<Mode>("unstaged");
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [view, setView] = useState<"diff" | "content">("diff");
   const input = { directory, mode };
   const list = useQuery({
     queryKey: ["git-diff-files", directory, mode],
@@ -19,6 +23,11 @@ export function DiffPanel({ theme, directory, upstream }: PluginWorkspacePanelPr
     enabled: !!directory,
   });
   const current = selected && list.data?.files.includes(selected) ? selected : null;
+  const content = useQuery({
+    queryKey: ["git-file-content", directory, mode, current],
+    queryFn: () => getFileContent({ directory, file: current!, source: mode === "unstaged" ? "worktree" : "commit", revision: mode === "unstaged" ? undefined : "HEAD" }),
+    enabled: !!directory && !!current && view === "content",
+  });
   const patch = useQuery({
     queryKey: ["git-diff-patch", directory, mode, current],
     queryFn: () => rpc({ ...input, file: current }),
@@ -36,7 +45,7 @@ export function DiffPanel({ theme, directory, upstream }: PluginWorkspacePanelPr
     <View style={{ flex: 1, gap: 10, backgroundColor: theme.colors.surface0 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
         {modes.map(([value, label]) => (
-          <Pressable key={value} accessibilityRole="button" onPress={() => { setMode(value); setSelected(null); }} style={{ ...button, backgroundColor: mode === value ? theme.colors.accent : theme.colors.surface0 }}>
+          <Pressable key={value} accessibilityRole="button" onPress={() => { setMode(value); setSelected(null); setView("diff"); }} style={{ ...button, backgroundColor: mode === value ? theme.colors.accent : theme.colors.surface0 }}>
             <Text style={{ color: mode === value ? theme.colors.accentForeground : theme.colors.foreground }}>{label}</Text>
           </Pressable>
         ))}
@@ -59,7 +68,12 @@ export function DiffPanel({ theme, directory, upstream }: PluginWorkspacePanelPr
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: current === file }} onPress={() => setSelected(current === file ? null : file)} style={{ paddingHorizontal: 10, paddingVertical: 8, backgroundColor: current === file ? theme.colors.surface2 : theme.colors.surface1 }}>
             <Text style={text} numberOfLines={2}>{current === file ? "▾" : "▸"} {file}</Text>
           </Pressable>
-          {current === file && <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : "没有可显示的文本 diff。")} truncated={patch.data?.truncated} />}
+          {current === file && <View style={{ gap: 6, padding: 8 }}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {([["diff", "差异"], ["content", "全文"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" onPress={() => setView(value)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: view === value ? theme.colors.accent : theme.colors.surface1 }}><Text style={{ color: view === value ? theme.colors.accentForeground : theme.colors.foreground, fontSize: 12 }}>{label}</Text></Pressable>)}
+            </View>
+            {view === "diff" ? <PatchView theme={theme} patch={patch.data?.patch || (patch.isFetching ? "正在读取 diff…" : "没有可显示的文本 diff。")} truncated={patch.data?.truncated} /> : content.isFetching ? <Text style={muted}>正在读取文件内容…</Text> : content.error ? <Text selectable style={text}>读取失败：{content.error instanceof Error ? content.error.message : String(content.error)}</Text> : content.data?.binary ? <Text style={muted}>二进制文件，不显示内容。</Text> : <FileContentView content={content.data?.content ?? ""} truncated={content.data?.truncated ?? false} totalLines={content.data?.totalLines ?? 0} theme={theme} />}
+          </View>}
         </View>)}
         {list.data && list.data.files.length > 0 && files.length === 0 && <Text style={muted}>没有匹配的文件。</Text>}
       </ScrollView>
