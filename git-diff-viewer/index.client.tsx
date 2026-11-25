@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { z } from "zod";
 import { DiffPanel } from "./client/diff";
 import { HistoryPanel } from "./client/history";
+import { useSharedPanelState } from "./client/shared-state";
 import { repositoriesRpc } from "./shared/repositories";
 
 type Tab = "changes" | "history";
@@ -20,15 +21,18 @@ function GitPanel(props: PluginWorkspacePanelProps) {
   const { theme, layout, workspaceId, tab: panelTab } = props;
   const directory = useWorkspace(workspaceId, (workspace) => workspace.directory) ?? "";
   const getRepositories = useRpc(repositoriesRpc);
-  const [state, setState] = useTabState(panelTab, panelStateSchema, { selected: "", extraRoots: [], tab: "changes" } satisfies PanelState);
+  const [persisted, setPersisted] = useTabState(panelTab, panelStateSchema, { selected: "", extraRoots: [], tab: "changes" } satisfies PanelState);
   const [filter, setFilter] = useState("");
   const [repoPicker, setRepoPicker] = useState(false);
-  const tab = state.tab;
-  const setTab = (next: Tab) => setState({ ...state, tab: next });
-  const selected = state.selected;
-  const setSelected = (next: string) => setState({ ...state, selected: next });
-  const extraRoots = state.extraRoots;
-  const setExtraRoots = (next: string[]) => setState({ ...state, extraRoots: next });
+  // Shared across every instance of the panel in this workspace.
+  const { shared, write } = useSharedPanelState(workspaceId, persisted);
+  const setState = (next: PanelState) => { write(next); setPersisted(next); };
+  const tab = shared.tab;
+  const setTab = (next: Tab) => setState({ ...shared, tab: next });
+  const selected = shared.selected;
+  const setSelected = (next: string) => setState({ ...shared, selected: next });
+  const extraRoots = shared.extraRoots;
+  const setExtraRoots = (next: string[]) => setState({ ...shared, extraRoots: next });
   const result = useQuery({
     queryKey: ["git-repositories", directory, extraRoots],
     queryFn: () => getRepositories({ directory, roots: extraRoots }),
