@@ -19,17 +19,14 @@ A Paseo plugin that shows the Git repositories of a workspace, their uncommitted
 
 ## Install
 
-From a Git repository:
+Install directly from the public GitHub monorepo (the suffix selects the plugin subdirectory):
 
 ```bash
-paseo plugin install github:owner/repository
+paseo plugin install github:huang-x-h/paseo-plugins:git-diff-viewer
+paseo plugin ls
 ```
 
-From npm:
-
-```bash
-paseo plugin install npm:@scope/paseo-git-diff-viewer
-```
+The plugin is installed on the daemon selected by the CLI. The Paseo client must be connected to that same daemon. Once installed and running, open the **Git 仓库** panel in a workspace or Explorer.
 
 ## Develop
 
