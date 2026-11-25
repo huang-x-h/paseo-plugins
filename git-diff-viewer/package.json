@@ -1,7 +1,14 @@
 {
-  "name": "git-diff-viewer",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@huang-x-h/paseo-git-diff-viewer",
+  "version": "0.1.0",
+  "description": "Inspect Git repositories, changes, and history for a Paseo workspace.",
+  "license": "Apache-2.0",
+  "keywords": [
+    "paseo",
+    "paseo-plugin",
+    "git",
+    "diff"
+  ],
   "files": [
     "paseo-plugin.json",
     "OVERVIEW.md",
@@ -15,13 +22,14 @@
     "shared/"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node tests/history.cjs"
   },
   "devDependencies": {
     "@getpaseo/plugin": "0.14.0",
     "@tanstack/react-query": "^5.90.11",
-    "@types/react": "~19.2.0",
     "@types/node": "^24.0.0",
+    "@types/react": "~19.2.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "typescript": "^5.9.3",

@@ -1,7 +1,11 @@
-# Git 仓库查看器
+# Git repository viewer
 
-在工作区查看多个 Git 仓库的状态、改动和提交历史。打开面板时自动扫描工作区，顶部下拉框切换仓库，并显示当前分支、上游领先和落后数量、改动数量和最近提交。下拉框内可按路径检索仓库。改动页纵向列出文件，点击展开 diff，并显示当前比较范围的新增、删除行数。展开的文件可在“差异”和“全文”之间切换：本地未提交模式显示工作区磁盘上的文件，本地与源端模式显示本地 HEAD 版本；提交历史页的全文显示该提交中的文件版本。改动页默认只有“本地未提交”一个范围，即工作区相对 HEAD 的全部改动，包含已暂存、未暂存和未跟踪文件；当前分支配置了上游跟踪分支时，才出现“本地与源端”，比较上游与本地 HEAD 两个提交快照。也可选择本地、远程分支浏览历史与提交内容。上游比较使用本地远端跟踪引用，不会自动 fetch，也不包含未提交改动；未配置上游时需要先配置。
+Inspect the Git repositories that belong to a workspace without leaving Paseo. The panel scans the workspace for repositories, shows each repository's branch, upstream tracking status, change counts, and latest commit, and lets you switch between them from a dropdown.
 
-需要守护进程机器安装 Git。自动扫描工作区及其子目录最多四层，同时包含工作区所在的外围仓库。工作区内没有仓库时，插件不会自行扩大范围，而是列出含仓库的上级目录供你选择扫描；确认的目录在本次面板会话中保留，可随时移除。扫描跳过 `.git`、依赖和常见构建目录，不跟随目录符号链接，最多检查 2500 个目录和 60 个仓库。工作区以外且不属于外围仓库的路径不会自动纳入。面板打开时自动扫描仓库列表，重新打开面板时会重新扫描，之后也可随时手动刷新；改动页和分支历史页各自带有刷新按钮。当前选中的仓库、页签和附加目录在面板关闭后保留；同一工作区内打开的多个面板实例共享这些选择，切换任意实例会同步到其他实例。
+Changes view. Lists the files that differ in the selected scope, shows how many lines were added and removed, and expands a file into its diff. The scope is either uncommitted work in the working tree, which includes staged, unstaged, and untracked files, or the difference between the upstream branch and local HEAD. The upstream scope only appears when the current branch has an upstream tracking branch, and it compares the two commit snapshots without running a fetch. Each file offers a diff view and a full content view.
 
-插件执行只读 Git 命令并读取未跟踪文件，不会上传代码、修改仓库或切换分支。全文预览不读取符号链接，二进制文件不显示内容，超过 200KB 或 5000 行的文件只显示开头部分并给出提示。diff 使用主题颜色区分新增、删除、变更块并显示行号，新增和删除行带整行背景色，隐藏 Git 文件级头部信息，只保留代码内容。代码块高度随内容自适应，短diff 不留空白。二进制文件和无法读取或过大的未跟踪文件不计入行数，界面会提示统计不完整。工作区未提交视图包含未跟踪文件；其符号链接、二进制文件和超过 200,000 字节的文件不预览。合并提交的 diff 相对第一父提交显示。单个补丁超过 200,000 字符时截断；Git 输出超过 4 MiB 时会报错。
+History view. Browse the commit history of any local or remote branch, read a commit message, and inspect the files it changed.
+
+Requirements. Git must be installed on the machine that runs the daemon, and the workspace directory must sit inside a Git repository. The scan walks up to four levels below the workspace, skips dependencies and common build directories, and never follows directory symlinks. When the workspace directory contains no repository, the plugin lists parent directories that do and asks before scanning them, so unrelated repositories are never pulled in silently.
+
+The plugin runs read-only Git commands and reads untracked files. It does not upload code, modify a repository, or switch branches. Binary files are not previewed, files over 200KB or 5000 lines show only the beginning, and diffs longer than 200,000 characters are truncated.
