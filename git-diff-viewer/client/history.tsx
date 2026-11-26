@@ -43,7 +43,7 @@ export function HistoryPanel({ directory, theme }: PluginWorkspacePanelProps & {
       <Pressable accessibilityRole="button" onPress={() => { void branches.refetch(); void history.refetch(); if (commit) void files.refetch(); if (file) void patch.refetch(); }} style={button}><Text style={text}>刷新</Text></Pressable>
     </View>
     {branchPicker && <View style={{ maxHeight: 240, gap: 5 }}>
-      <TextInput accessibilityLabel="搜索分支" value={branchFilter} onChangeText={setBranchFilter} placeholder="搜索本地或远程分支" placeholderTextColor={theme.colors.foregroundMuted} style={{ ...text, ...button }} />
+      <TextInput accessibilityLabel="搜索分支" value={branchFilter} onChangeText={setBranchFilter} placeholder="搜索本地或源端分支" placeholderTextColor={theme.colors.foregroundMuted} style={{ ...text, ...button }} />
       <ScrollView keyboardShouldPersistTaps="handled">
         <Pressable accessibilityRole="button" onPress={() => changeRef("HEAD")} style={{ padding: 8 }}><Text style={text}>当前 HEAD ({branches.data?.current ?? "…"})</Text></Pressable>
         {branches.data?.branches.filter((item) => item.name.toLowerCase().includes(branchFilter.toLowerCase())).map((item) => <Pressable accessibilityRole="button" key={item.ref} onPress={() => changeRef(item.ref)} style={{ padding: 8 }}><Text style={text}>{item.name}{item.name === branches.data?.current && item.ref.startsWith("refs/heads/") ? " （当前）" : ""}</Text></Pressable>)}

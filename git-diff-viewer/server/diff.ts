@@ -42,6 +42,20 @@ export async function getDiff(input: RpcInput<typeof diffRpc>) {
     }
     options.push(upstream, "HEAD");
   }
+  if (mode === "branches") {
+    const { localRef, remoteRef } = input;
+    if (!localRef?.startsWith("refs/heads/") || !remoteRef?.startsWith("refs/remotes/") || remoteRef.endsWith("/HEAD")) {
+      throw new Error("请选择有效的本地分支和源端分支。");
+    }
+    try {
+      const [local, remote] = await Promise.all([localRef, remoteRef].map((ref) => git(directory, ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`])));
+      const base = (await git(directory, ["merge-base", remote.trim(), local.trim()])).trim();
+      if (!base) throw new Error("no merge base");
+      options.push(base, local.trim());
+    } catch {
+      throw new Error("无法比较分支：分支不存在、已被删除或没有共同祖先。请检查并刷新分支列表。");
+    }
+  }
   if (mode === "unstaged") {
     // Uncommitted content: staged plus unstaged changes against HEAD.
     options.push("HEAD");

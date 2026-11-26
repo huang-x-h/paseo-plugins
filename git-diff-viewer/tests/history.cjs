@@ -16,11 +16,19 @@ const diff = load('server/diff.ts');
 const history = load('server/history.ts', { './diff': diff });
 const repositories = load('server/repositories.ts', { './diff': diff });
 const fileContent = load('server/file.ts', { './diff': diff });
+const { matchingRemote } = load('client/branch-selection.ts');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'paseo-git-history-'));
 const git = (...args) => cp.execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
 (async () => {
   try {
+    const remoteBranches = ['origin/main', 'origin/feature/test', 'upstream/feature/test', 'upstream/other'].map((name) => ({ name, ref: `refs/remotes/${name}` }));
+    assert.equal(matchingRemote('refs/heads/feature/test', remoteBranches, 'upstream/feature/test', 'feature/test'), 'refs/remotes/upstream/feature/test');
+    assert.equal(matchingRemote('refs/heads/feature/test', remoteBranches, 'origin/main', 'main'), 'refs/remotes/origin/feature/test');
+    assert.equal(matchingRemote('refs/heads/other', remoteBranches, '', 'main'), 'refs/remotes/upstream/other');
+    assert.equal(matchingRemote('refs/heads/missing', remoteBranches, '', 'main'), '');
+    assert.equal(matchingRemote('refs/heads/feature/test', remoteBranches.filter((item) => !item.name.startsWith('origin/')), '', ''), 'refs/remotes/upstream/feature/test');
+    assert.equal(matchingRemote('refs/heads/feature/test', [{ name: 'one/feature/test', ref: 'one' }, { name: 'two/feature/test', ref: 'two' }], '', ''), '');
     git('init'); git('config', 'user.email', 'test@example.com'); git('config', 'user.name', 'Tester');
     fs.writeFileSync(path.join(dir, 'file name.txt'), 'first\n'); git('add', '.'); git('commit', '-m', 'initial');
     const first = git('rev-parse', 'HEAD');
@@ -36,6 +44,27 @@ const git = (...args) => cp.execFileSync('git', args, { cwd: dir, encoding: 'utf
     fs.writeFileSync(path.join(dir, 'file name.txt'), 'uncommitted\n');
     const upstreamDiff = await diff.getDiff({ directory: dir, mode: 'upstream', file: 'file name.txt' });
     assert.match(upstreamDiff.patch, /\+second/); assert.doesNotMatch(upstreamDiff.patch, /uncommitted/);
+    const compareInput = { directory: dir, mode: 'branches', localRef: `refs/heads/${branchName}`, remoteRef: 'refs/remotes/origin/test' };
+    const comparison = await diff.getDiff({ ...compareInput, file: 'file name.txt' });
+    assert.match(comparison.patch, /-first/); assert.match(comparison.patch, /\+second/); assert.doesNotMatch(comparison.patch, /uncommitted/);
+    const compareStats = await diff.getDiff({ ...compareInput, file: null });
+    assert.equal(compareStats.additions, 1); assert.equal(compareStats.deletions, 1);
+    const identical = await diff.getDiff({ ...compareInput, localRef: 'refs/heads/other', file: null });
+    assert.deepEqual(identical.files, []);
+    // A source-only commit must not appear as a deletion in the local branch's changes.
+    const sourceTree = git('rev-parse', `${first}^{tree}`);
+    const sourceCommit = cp.execFileSync('git', ['commit-tree', sourceTree, '-p', second, '-m', 'source only'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    git('update-ref', 'refs/remotes/origin/diverged', sourceCommit);
+    const sourceOnly = await diff.getDiff({ ...compareInput, remoteRef: 'refs/remotes/origin/diverged', file: null });
+    assert.deepEqual(sourceOnly.files, []);
+    const independent = cp.execFileSync('git', ['commit-tree', sourceTree, '-p', first, '-m', 'independent source'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    git('update-ref', 'refs/remotes/origin/independent', independent);
+    const divergent = await diff.getDiff({ ...compareInput, remoteRef: 'refs/remotes/origin/independent', file: 'file name.txt' });
+    assert.match(divergent.patch, /-first/); assert.match(divergent.patch, /\+second/);
+    await assert.rejects(diff.getDiff({ ...compareInput, localRef: '--all', file: null }), /有效/);
+    await assert.rejects(diff.getDiff({ ...compareInput, remoteRef: 'refs/remotes/origin/missing', file: null }), /不存在/);
+    const branchContent = await fileContent.getFileContent({ directory: dir, file: 'file name.txt', source: 'commit', revision: `refs/heads/${branchName}` });
+    assert.match(branchContent.content, /second/); assert.doesNotMatch(branchContent.content, /uncommitted/);
     const branches = await history.getBranches({ directory: dir });
     assert(branches.branches.some((b) => b.ref === 'refs/heads/other'));
     const log = await history.getHistory({ directory: dir, ref: 'HEAD', skip: 0 });

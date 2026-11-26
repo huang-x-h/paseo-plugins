@@ -2,7 +2,7 @@ import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { RpcInput } from "@getpaseo/plugin";
 import { fileContentRpc } from "../shared/file";
-import { gitBuffer } from "./diff";
+import { git, gitBuffer } from "./diff";
 
 const MAX_BYTES = 200_000;
 const MAX_LINES = 5000;
@@ -19,7 +19,11 @@ function finish(text: string, binary: boolean, truncated: boolean) {
 export async function getFileContent(input: RpcInput<typeof fileContentRpc>) {
   const { directory, file, source } = input;
   if (source === "commit") {
-    const revision = input.revision ?? "HEAD";
+    let revision = input.revision ?? "HEAD";
+    if (revision.startsWith("refs/heads/")) {
+      try { revision = (await git(directory, ["rev-parse", "--verify", "--end-of-options", `${revision}^{commit}`])).trim(); }
+      catch { throw new Error("分支不存在或已被删除，请刷新分支列表。"); }
+    }
     if (!/^(HEAD|[0-9a-f]{4,64})$/.test(revision)) throw new Error("无效的修订号。");
     // The path follows the colon, so reject anything that could change the meaning.
     if (file.startsWith("-") || file.includes("..") || file.includes(":")) throw new Error("无效的文件路径。");
