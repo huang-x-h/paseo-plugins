@@ -56,16 +56,15 @@ function GitPanel(props: PluginWorkspacePanelProps) {
       {([ ["changes", "工作区改动"], ["history", "分支与历史"] ] as const).map(([id, title]) => <Pressable key={id} accessibilityRole="button" onPress={() => setTab(id)} style={{ padding: 8, borderRadius: 5, ...(tab === id ? active : {}) }}><Text style={tab === id ? activeText : text}>{title}</Text></Pressable>)}
       <Pressable accessibilityRole="button" accessibilityLabel="刷新仓库列表" onPress={() => void result.refetch()} style={{ padding: 8, borderRadius: 5, borderWidth: 1, borderColor: theme.colors.border }}><Text style={text}>{result.isFetching ? "刷新中…" : "刷新"}</Text></Pressable>
     </View>
-    <View style={{ flex: 1, gap: 10, padding: layout.compact ? 10 : 16 }}>
+    <View style={{ flex: 1, minHeight: 0, gap: 8, padding: layout.compact ? 8 : 12 }}>
       <View style={{ gap: 6 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="选择仓库" accessibilityState={{ expanded: repoPicker }} onPress={() => setRepoPicker(!repoPicker)} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 10, borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="选择仓库" accessibilityState={{ expanded: repoPicker }} onPress={() => setRepoPicker(!repoPicker)} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 8, borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface1 }}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text numberOfLines={1} style={text} selectable>{currentRepo ? currentRepo.directory : result.isFetching ? "正在扫描仓库…" : "未找到 Git 仓库"}</Text>
             {currentRepo && <Text numberOfLines={1} style={muted}>
               {currentRepo.branch || "未知分支"}{currentRepo.upstream ? ` → ${currentRepo.upstream}` : ""}{currentRepo.upstream ? ` ↑${currentRepo.ahead} ↓${currentRepo.behind}` : ""}
               {changed > 0 ? ` · ${changed} 处改动` : " · 工作区干净"}
             </Text>}
-            {currentRepo?.lastCommit && <Text numberOfLines={1} style={muted}>最近提交：{currentRepo.lastCommit}</Text>}
           </View>
           <Text style={muted}>{repoPicker ? "▴" : "▾"}</Text>
         </Pressable>

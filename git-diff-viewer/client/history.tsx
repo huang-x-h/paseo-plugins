@@ -7,7 +7,7 @@ import { fileContentRpc } from "../shared/file";
 import { FileContentView } from "./file-view";
 import { PatchView } from "./patch-view";
 
-export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelProps & { directory: string }) {
+export function HistoryPanel({ directory, theme }: PluginWorkspacePanelProps & { directory: string }) {
   const getBranches = useRpc(branchesRpc);
   const getHistory = useRpc(historyRpc);
   const getCommit = useRpc(commitRpc);
@@ -19,6 +19,9 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
   const [selectedHash, setSelectedHash] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [view, setView] = useState<"diff" | "content">("diff");
+  const [width, setWidth] = useState(0);
+  const [showSelection, setShowSelection] = useState(true);
+  const wide = width >= 800;
   const branches = useQuery({ queryKey: ["git-branches", directory], queryFn: () => getBranches({ directory }), enabled: !!directory });
   const history = useQuery({ queryKey: ["git-history", directory, ref, page], queryFn: () => getHistory({ directory, ref, skip: page * 100 }), enabled: !!directory });
   const commit = history.data?.commits.find((item) => item.hash === selectedHash) ?? history.data?.commits[0];
@@ -32,10 +35,9 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
   const selectedStyle = { backgroundColor: theme.colors.accent };
   const selectedText = { color: theme.colors.accentForeground };
   const branchName = ref === "HEAD" ? `当前 HEAD (${branches.data?.current ?? "…"})` : branches.data?.branches.find((item) => item.ref === ref)?.name ?? ref;
-  const body = (files.data?.message ?? "").split("\n").slice(1).join("\n").trim();
   const error = branches.error ?? history.error ?? files.error ?? patch.error;
   const changeRef = (value: string) => { setRef(value); setPage(0); setSelectedHash(null); setSelectedFile(null); setBranchPicker(false); };
-  return <View style={{ flex: 1, gap: 8, backgroundColor: theme.colors.surface0 }}>
+  return <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flex: 1, minHeight: 0, gap: 8, backgroundColor: theme.colors.surface0 }}>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="选择分支" onPress={() => setBranchPicker(!branchPicker)} style={button}><Text style={text}>分支：{branchName} ▾</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={() => { void branches.refetch(); void history.refetch(); if (commit) void files.refetch(); if (file) void patch.refetch(); }} style={button}><Text style={text}>刷新</Text></Pressable>
@@ -49,29 +51,30 @@ export function HistoryPanel({ directory, theme, layout }: PluginWorkspacePanelP
     </View>}
     {error && <Text selectable style={text}>读取失败：{error instanceof Error ? error.message : String(error)}</Text>}
     {!directory && <Text style={muted}>工作区目录不可用。</Text>}
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-      <Text style={muted}>{history.isFetching ? "正在读取提交…" : `提交历史 · 第 ${page + 1} 页（每页 100 条）`}</Text>
-      <Pressable accessibilityRole="button" disabled={page === 0} onPress={() => { setPage(page - 1); setSelectedHash(null); setSelectedFile(null); }} style={button}><Text style={page === 0 ? muted : text}>上一页</Text></Pressable>
-      <Pressable accessibilityRole="button" disabled={!history.data?.hasMore || page >= 1000} onPress={() => { setPage(page + 1); setSelectedHash(null); setSelectedFile(null); }} style={button}><Text style={history.data?.hasMore ? text : muted}>下一页</Text></Pressable>
-    </View>
-    <View style={{ flex: 1, gap: 10 }}>
-      <ScrollView style={{ flexGrow: 0, maxHeight: layout.compact ? 180 : 260 }} contentContainerStyle={{ gap: 4 }}>
-        {history.data?.commits.map((item) => <Pressable key={item.hash} accessibilityRole="button" onPress={() => { setSelectedHash(item.hash); setSelectedFile(null); }} style={{ padding: 8, gap: 2, ...(commit?.hash === item.hash ? selectedStyle : {}) }}>
-          <Text numberOfLines={2} style={commit?.hash === item.hash ? selectedText : text}>{item.subject}</Text>
-          <Text numberOfLines={1} style={commit?.hash === item.hash ? selectedText : muted}>{item.shortHash} · {item.author} · {item.date.slice(0, 10)}</Text>
-        </Pressable>)}
-        {!history.isFetching && history.data?.commits.length === 0 && <Text style={muted}>没有提交记录。</Text>}
-      </ScrollView>
-      <View style={{ flex: 1, gap: 6, minHeight: 0 }}>
-        {commit && <View style={{ gap: 2 }}>
-          <Text numberOfLines={1} style={{ ...muted, fontFamily: "monospace", fontSize: 11 }} selectable>{commit.hash}</Text>
-          {body && <Text selectable style={text}>{body}</Text>}
-        </View>}
-        <ScrollView style={{ flexGrow: 0, maxHeight: 140 }} contentContainerStyle={{ gap: 4 }}>
-          {files.data?.files.map((name) => <Pressable accessibilityRole="button" key={name} onPress={() => setSelectedFile(name)} style={{ padding: 6, borderRadius: 4, backgroundColor: file === name ? theme.colors.accent : theme.colors.surface1, borderWidth: 1, borderColor: theme.colors.border }}><Text numberOfLines={2} style={{ ...(file === name ? selectedText : text), fontSize: 12 }}>{name}</Text></Pressable>)}
+    {!wide && <Pressable accessibilityRole="button" accessibilityState={{ expanded: showSelection }} onPress={() => setShowSelection(!showSelection)} style={button}><Text style={text}>{showSelection ? "收起提交和文件 ▴" : "选择提交和文件 ▾"}</Text></Pressable>}
+    <View style={{ flex: 1, minHeight: 0, flexDirection: wide ? "row" : "column", gap: 10 }}>
+      {(wide || showSelection) && <View style={{ ...(wide ? { width: 300, flexShrink: 0 } : { height: 220 }), minHeight: 0, gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={{ ...muted, flex: 1 }} numberOfLines={1}>{history.isFetching ? "读取提交…" : `提交 · 第 ${page + 1} 页`}</Text>
+          <Pressable accessibilityRole="button" disabled={page === 0} onPress={() => { setPage(page - 1); setSelectedHash(null); setSelectedFile(null); }} style={button}><Text style={page === 0 ? muted : text}>上一页</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={!history.data?.hasMore || page >= 1000} onPress={() => { setPage(page + 1); setSelectedHash(null); setSelectedFile(null); }} style={button}><Text style={history.data?.hasMore ? text : muted}>下一页</Text></Pressable>
+        </View>
+        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 3 }} nestedScrollEnabled>
+          {history.data?.commits.map((item) => <Pressable key={item.hash} accessibilityRole="button" onPress={() => { setSelectedHash(item.hash); setSelectedFile(null); }} style={{ padding: 6, gap: 2, borderRadius: 4, ...(commit?.hash === item.hash ? selectedStyle : {}) }}>
+            <Text numberOfLines={1} style={commit?.hash === item.hash ? selectedText : text}>{item.subject}</Text>
+            <Text numberOfLines={1} style={{ ...(commit?.hash === item.hash ? selectedText : muted), fontSize: 11 }}>{item.shortHash} · {item.author} · {item.date.slice(0, 10)}</Text>
+          </Pressable>)}
+          {!history.isFetching && history.data?.commits.length === 0 && <Text style={muted}>没有提交记录。</Text>}
+        </ScrollView>
+        <Text style={muted}>改动文件 {files.data ? `· ${files.data.files.length}` : ""}</Text>
+        <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 3 }} nestedScrollEnabled>
+          {files.data?.files.map((name) => <Pressable accessibilityRole="button" key={name} onPress={() => { setSelectedFile(name); if (!wide) setShowSelection(false); }} style={{ padding: 6, borderRadius: 4, backgroundColor: file === name ? theme.colors.accent : theme.colors.surface1, borderWidth: 1, borderColor: theme.colors.border }}><Text numberOfLines={2} style={{ ...(file === name ? selectedText : text), fontSize: 12 }}>{name}</Text></Pressable>)}
         </ScrollView>
         {files.isFetching && <Text style={muted}>正在读取文件…</Text>}
         {files.data && files.data.files.length === 0 && <Text style={muted}>此提交没有文件改动。</Text>}
+      </View>}
+      <View style={{ flex: 1, minWidth: 0, minHeight: 0, gap: 6 }}>
+        {file && <Text numberOfLines={1} style={muted} selectable>{file}</Text>}
         <View style={{ flexDirection: "row", gap: 6 }}>
           {([["diff", "差异"], ["content", "全文"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" onPress={() => setView(value)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: view === value ? theme.colors.accent : theme.colors.surface1 }}><Text style={{ color: view === value ? theme.colors.accentForeground : theme.colors.foreground, fontSize: 12 }}>{label}</Text></Pressable>)}
         </View>
